@@ -1,4 +1,4 @@
-"""Simple JAX-based hydrologic model."""
+"""Distributed hydrologic model built with JAX."""
 
 from __future__ import annotations
 
@@ -8,69 +8,39 @@ try:
     import jax.numpy as jnp
 except ImportError as e:
     raise ImportError(
-        "JAX is required to use hydropy.model. Please install jax." 
+        "JAX is required to use hydropy.model. Please install jax."
     ) from e
 
 
-class RRParams(NamedTuple):
-    """Parameters for the rainfall-runoff model."""
+class SnowParams(NamedTuple):
+    """Parameters controlling snow processes."""
+
+    melt_temp: float  # temperature threshold for melt
+    melt_rate: float  # melt factor per degree above threshold
+
+
+class CanopyParams(NamedTuple):
+    """Parameters for interception and canopy evaporation."""
 
     capacity: float
     evap_coeff: float
 
 
-def rainfall_runoff(precip: jnp.ndarray, evap: jnp.ndarray, params: RRParams) -> jnp.ndarray:
-    """Compute runoff from precipitation and evapotranspiration.
-
-    Args:
-        precip: Precipitation time series.
-        evap: Potential evapotranspiration time series.
-        params: Model parameters.
-
-    Returns:
-        Runoff time series.
-    """
-    # Simple bucket model
-    storage = 0.0
-    runoff = []
-    for p, e in zip(precip, evap):
-        storage = jnp.clip(storage + p - params.evap_coeff * e, 0.0, params.capacity)
-        r = jnp.maximum(storage - params.capacity, 0.0)
-        storage = storage - r
-        runoff.append(r)
-    return jnp.stack(runoff)
-
-
-
-class SnowParams(NamedTuple):
-    """Parameters controlling the snow process."""
-
-    melt_temp: float = 0.0
-    melt_coeff: float = 1.0
-
-
-class CanopyParams(NamedTuple):
-    """Parameters for canopy interception and evaporation."""
-
-    capacity: float = 1.0
-    evap_coeff: float = 1.0
-
-
 class SoilParams(NamedTuple):
-    """Parameters describing soil moisture behaviour."""
+    """Parameters for soil moisture processes."""
 
-    capacity: float = 1.0
-    evap_coeff: float = 1.0
+    field_capacity: float
+    percolation_coeff: float
 
 
 class GroundwaterParams(NamedTuple):
-    """Parameters for a simple linear groundwater store."""
+    """Parameters for groundwater storage."""
 
-    recession_coeff: float = 0.5
+    baseflow_coeff: float
 
 
 class HydroParams(NamedTuple):
-    """Grouped parameters for the full hydrologic model."""
+    """Container for all model parameters."""
 
 
     snow: SnowParams
@@ -79,83 +49,64 @@ class HydroParams(NamedTuple):
     groundwater: GroundwaterParams
 
 
-def _snow_step(precip: jnp.ndarray, temp: jnp.ndarray, snow: jnp.ndarray, params: SnowParams):
-    """Very simple degree-day snow model."""
-
-    melt = jnp.where(temp > params.melt_temp, params.melt_coeff * (temp - params.melt_temp), 0.0)
-    snow = jnp.maximum(snow + precip - melt, 0.0)
-    return snow, melt
-
-
-def _canopy_step(precip: jnp.ndarray, evap: jnp.ndarray, canopy: jnp.ndarray, params: CanopyParams):
-    """Simple canopy interception and evaporation."""
-
-    intercepted = jnp.minimum(precip, params.capacity - canopy)
-    canopy = canopy + intercepted
-    throughfall = precip - intercepted
-    evap_loss = params.evap_coeff * evap
-    canopy = jnp.maximum(canopy - evap_loss, 0.0)
-    return canopy, throughfall
-
-
-def _soil_step(water: jnp.ndarray, evap: jnp.ndarray, soil: jnp.ndarray, params: SoilParams):
-    """Update soil moisture and compute percolation."""
-
-    soil = jnp.minimum(soil + water - params.evap_coeff * evap, params.capacity)
-    percolation = jnp.maximum(soil - params.capacity, 0.0)
-    soil = soil - percolation
-    return soil, percolation
-
-
-def _groundwater_step(recharge: jnp.ndarray, gw: jnp.ndarray, params: GroundwaterParams):
-    """Linear reservoir for groundwater."""
-
-    gw = gw + recharge
-    baseflow = params.recession_coeff * gw
-    gw = gw - baseflow
-    return gw, baseflow
-
-
-
 def hydrologic_model(
-    precip: jnp.ndarray,
-    temp: jnp.ndarray,
-    evap: jnp.ndarray,
-    params: HydroParams,
+    precip: jnp.ndarray, temp: jnp.ndarray, params: HydroParams
 ) -> jnp.ndarray:
-    """Run a distributed, process-based hydrologic model.
+    """Simulate runoff for multiple locations.
 
     Args:
-        precip: Precipitation array with shape ``(time, n_cells)``.
-        temp: Temperature array with shape ``(time, n_cells)``.
-        evap: Potential evapotranspiration with shape ``(time, n_cells)``.
+        precip: Precipitation array ``[time, n_cells]``.
+        temp: Temperature array ``[time, n_cells]``.
         params: Model parameters.
 
     Returns:
-        Runoff array of shape ``(time, n_cells)``.
+        Runoff array with shape ``[time, n_cells]``.
     """
+    snow_storage = jnp.zeros(precip.shape[1])
+    canopy_storage = jnp.zeros_like(snow_storage)
+    soil_storage = jnp.zeros_like(snow_storage)
+    gw_storage = jnp.zeros_like(snow_storage)
+    runoff_ts = []
 
-    n_cells = precip.shape[1]
-    snow = jnp.zeros(n_cells)
-    canopy = jnp.zeros(n_cells)
-    soil = jnp.zeros(n_cells)
-    gw = jnp.zeros(n_cells)
+    for p, t in zip(precip, temp):
+        # Snow processes
+        snow_storage = snow_storage + jnp.where(t < params.snow.melt_temp, p, 0.0)
+        melt = jnp.where(
+            t >= params.snow.melt_temp,
+            params.snow.melt_rate * (t - params.snow.melt_temp),
+            0.0,
+        )
+        melt = jnp.minimum(melt, snow_storage)
+        snow_storage = snow_storage - melt
+        input_water = jnp.where(t >= params.snow.melt_temp, p, 0.0) + melt
 
-    runoff = []
-    for p, t, e in zip(precip, temp, evap):
-        snow, melt = _snow_step(p, t, snow, params.snow)
-        canopy, throughfall = _canopy_step(melt, e, canopy, params.canopy)
-        soil, recharge = _soil_step(throughfall, e, soil, params.soil)
-        gw, baseflow = _groundwater_step(recharge, gw, params.groundwater)
-        runoff.append(baseflow)
+        # Canopy processes
+        canopy_storage = canopy_storage + input_water
+        evap = params.canopy.evap_coeff * canopy_storage
+        canopy_storage = jnp.clip(canopy_storage - evap, 0.0, params.canopy.capacity)
+        throughfall = jnp.maximum(canopy_storage - params.canopy.capacity, 0.0)
+        canopy_storage = canopy_storage - throughfall
 
-    return jnp.stack(runoff)
+        # Soil processes
+        soil_storage = soil_storage + throughfall
+        percolation = params.soil.percolation_coeff * soil_storage
+        soil_storage = jnp.clip(
+            soil_storage - percolation, 0.0, params.soil.field_capacity
+        )
+        runoff_soil = jnp.maximum(soil_storage - params.soil.field_capacity, 0.0)
+        soil_storage = soil_storage - runoff_soil
 
+        # Groundwater processes
+        gw_storage = gw_storage + percolation
+        baseflow = params.groundwater.baseflow_coeff * gw_storage
+        gw_storage = gw_storage - baseflow
+
+        runoff_ts.append(runoff_soil + baseflow)
+
+    return jnp.stack(runoff_ts)
 
 
 __all__ = [
-    "RRParams",
-    "rainfall_runoff",
     "SnowParams",
     "CanopyParams",
     "SoilParams",
