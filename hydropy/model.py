@@ -1,4 +1,5 @@
-"""Distributed hydrologic model composed of simple process buckets."""
+
+"""Distributed hydrologic model built with JAX."""
 
 from __future__ import annotations
 
@@ -43,7 +44,6 @@ class GroundwaterParams(NamedTuple):
 
 class HydroParams(NamedTuple):
     """Container for all process parameters."""
-
     snow: SnowParams
     canopy: CanopyParams
     soil: SoilParams
@@ -128,6 +128,7 @@ def hydrologic_model(
         runoff, gw_state = groundwater_process(recharge, gw_state, params.groundwater)
         out.append(runoff)
     return jnp.stack(out)
+
 
 
 __all__ = [

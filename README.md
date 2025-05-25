@@ -5,6 +5,7 @@ HydroPy is a small set of hydrologic utilities built around
 process‑based hydrologic model composed of simple snow, canopy, soil and
 groundwater components.
 
+
 ## Installation
 
 Install the package (and JAX) with pip:
@@ -56,6 +57,7 @@ print(runoff)
 
 The model operates on arrays with shape `(time, n_locations)` and returns
 runoff with the same shape.
+
 
 ## Development
 

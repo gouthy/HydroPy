@@ -1,6 +1,7 @@
 """HydroPy package."""
 
 from .model import (
+
     SnowParams,
     CanopyParams,
     SoilParams,
@@ -10,6 +11,7 @@ from .model import (
     canopy_process,
     soil_process,
     groundwater_process,
+
     hydrologic_model,
 )
 

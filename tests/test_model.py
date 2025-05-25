@@ -4,6 +4,7 @@ jax = pytest.importorskip("jax")
 jnp = jax.numpy
 
 from hydropy import (
+
     SnowParams,
     CanopyParams,
     SoilParams,
@@ -25,3 +26,4 @@ def test_hydrologic_model_shape():
     )
     runoff = hydrologic_model(precip, temp, evap, params)
     assert runoff.shape == precip.shape
+
