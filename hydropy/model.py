@@ -70,14 +70,12 @@ class HydroState(NamedTuple):
     """Liquid water in the snowpack [mm]."""
 
     skin: float
+
     canopy: float
     soil: float
     groundwater: float
 
 
-# ---------------------------------------------------------------------------
-# State update helpers
-# ---------------------------------------------------------------------------
 
 def update_snow_state(
     state: HydroState,
@@ -119,6 +117,7 @@ def update_skin_canopy_state(
     )
     state = state._replace(skin=skin, canopy=canopy)
     return state, throughfall
+
 
 
 def update_soil_state(
@@ -237,12 +236,14 @@ def _single_cell_model(
         p, e, t = inputs
         state, _rain, p_sn, r_sn = update_snow_state(state, p, t, params)
         state, tf = update_skin_canopy_state(state, p, p_sn, r_sn, e, params)
+
         state, surf, recharge = update_soil_state(state, tf, params)
         state, base = update_groundwater_state(state, recharge, params)
         runoff = surf + base
         return state, runoff
 
     init = HydroState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
     _, runoff = jax.lax.scan(step, init, (precip, evap, temp))
     return runoff
 
