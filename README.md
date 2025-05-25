@@ -1,9 +1,10 @@
 # HydroPy
 
 HydroPy is a minimal collection of hydrologic utilities built around
-[JAX](https://github.com/google/jax). It started with a simple bucket
-rainfall–runoff model but now also includes a more physically motivated
-workflow made up of snow, canopy, soil and groundwater processes.
+[JAX](https://github.com/google/jax). It contains a simple empirical
+rainfall--runoff model as well as a lightweight process-based model
+including snow, canopy, soil and groundwater components for distributed
+simulations.
 
 ## Installation
 
@@ -21,26 +22,45 @@ for details.
 
 ```python
 import jax.numpy as jnp
+from hydropy import RRParams, rainfall_runoff
+
+precip = jnp.array([1.0, 0.5, 0.0])
+evap = jnp.array([0.2, 0.2, 0.2])
+params = RRParams(capacity=2.0, evap_coeff=1.0)
+
+runoff = rainfall_runoff(precip, evap, params)
+print(runoff)
+```
+
+The process-based model operates on 2-D arrays representing time and
+multiple grid cells:
+
+```python
+import jax.numpy as jnp
 from hydropy import (
-    HydroParams,
+
     SnowParams,
     CanopyParams,
     SoilParams,
     GroundwaterParams,
+    HydroParams,
     hydrologic_model,
 )
 
-precip = jnp.array([1.0, 0.5, 0.0])
-temp = jnp.array([1.0, -1.0, 2.0])
+# three timesteps for two cells
+precip = jnp.ones((3, 2))
+temp = jnp.zeros((3, 2))
+evap = jnp.full((3, 2), 0.2)
 
 params = HydroParams(
-    snow=SnowParams(melt_temp=0.0, melt_rate=1.0),
-    canopy=CanopyParams(capacity=0.2),
-    soil=SoilParams(field_capacity=1.0, percolation_rate=0.1),
-    groundwater=GroundwaterParams(baseflow_coeff=0.05),
+    snow=SnowParams(),
+    canopy=CanopyParams(),
+    soil=SoilParams(),
+    groundwater=GroundwaterParams(),
 )
 
-runoff = hydrologic_model(precip, temp, params)
+runoff = hydrologic_model(precip, temp, evap, params)
+
 print(runoff)
 ```
 
