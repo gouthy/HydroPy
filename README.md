@@ -1,8 +1,9 @@
 # HydroPy
 
-HydroPy is a minimal collection of hydrologic utilities built around
-[JAX](https://github.com/google/jax). It includes a small distributed
-hydrologic model with snow, canopy, soil and groundwater processes.
+HydroPy is a small set of hydrologic utilities built around
+[**JAX**](https://github.com/google/jax). It provides a distributed,
+process‑based hydrologic model composed of simple snow, canopy, soil and
+groundwater components.
 
 
 ## Installation
@@ -30,20 +31,33 @@ from hydropy import (
     hydrologic_model,
 )
 
-# time x n_cells arrays
-precip = jnp.array([[1.0, 0.5], [0.3, 0.2], [0.0, 0.1]])
-temp = jnp.array([[1.0, -1.0], [2.0, 0.5], [1.5, -0.5]])
+# Example for two locations and three time steps
+precip = jnp.array([
+    [1.0, 0.5],
+    [0.2, 0.1],
+    [0.0, 0.0],
+])
+temp = jnp.array([
+    [1.0, -1.0],
+    [2.0, 0.0],
+    [1.5, 1.0],
+])
+evap = jnp.full_like(precip, 0.1)
 
 params = HydroParams(
     snow=SnowParams(melt_temp=0.0, melt_rate=1.0),
-    canopy=CanopyParams(capacity=1.0, evap_coeff=0.1),
-    soil=SoilParams(field_capacity=1.0, percolation_coeff=0.1),
-    groundwater=GroundwaterParams(baseflow_coeff=0.05),
+    canopy=CanopyParams(capacity=1.0, drip_coeff=0.1, evaporation_coeff=1.0),
+    soil=SoilParams(capacity=2.0, percolation_rate=0.5, evap_coeff=1.0),
+    groundwater=GroundwaterParams(recession_coeff=0.3),
 )
 
-runoff = hydrologic_model(precip, temp, params)
+runoff = hydrologic_model(precip, temp, evap, params)
 print(runoff)
 ```
+
+The model operates on arrays with shape `(time, n_locations)` and returns
+runoff with the same shape.
+
 
 ## Development
 
