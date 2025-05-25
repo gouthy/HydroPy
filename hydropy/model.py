@@ -28,6 +28,7 @@ class SnowParams(NamedTuple):
 
 
 class CanopyParams(NamedTuple):
+
     f_bare: float
     f_veg: float
     LAI: float
@@ -189,6 +190,7 @@ def soil_module(
         S_so,
     )
 
+
     delta_sg = params.S_so_sg_max - params.S_so_sg_min
     c1 = jnp.where(
         delta_sg > 0,
@@ -246,6 +248,7 @@ def soil_module(
         0.0,
         jax.lax.select(cond_mid, R_gr_low, R_gr_low + R_gr_high),
     )
+
 
     dS_so = R_tr - R_srf - R_gr - E_T - E_bs
     S_so_new = S_so + dS_so
@@ -331,6 +334,7 @@ def _single_cell_model(
     evap: jnp.ndarray,
     temp: jnp.ndarray,
     params: HydroParams,
+
 ) -> jnp.ndarray:
     _require_jax()
 
@@ -344,6 +348,7 @@ def _single_cell_model(
         return state, runoff
 
     init = HydroState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
     _, runoff = jax.lax.scan(step, init, (precip, evap, temp))
     return runoff
 
@@ -353,6 +358,7 @@ def hydrologic_model(
     evap: jnp.ndarray,
     temp: jnp.ndarray,
     params: HydroParams,
+
 ) -> jnp.ndarray:
     """Run distributed hydrologic model.
 
@@ -360,8 +366,9 @@ def hydrologic_model(
     Inputs are arrays of shape (time, n_locations).
     """
     _require_jax()
-    return jax.vmap(_single_cell_model, in_axes=(1,1,1,None), out_axes=1)(precip, evap, temp, params)
-
+    return jax.vmap(_single_cell_model, in_axes=(1, 1, 1, None), out_axes=1)(
+        precip, evap, temp, params
+    )
 
 __all__ = [
     "SnowParams",
