@@ -1,8 +1,11 @@
 # HydroPy
 
-HydroPy provides a minimal, process based hydrologic model implemented with
-[JAX](https://github.com/google/jax). The model couples snow, canopy, soil and
-groundwater processes and can be applied over many locations using `jax.vmap`.
+
+HydroPy is a small set of hydrologic utilities built around
+[**JAX**](https://github.com/google/jax). It provides a distributed,
+process‑based hydrologic model composed of simple snow, canopy, soil and
+groundwater components.
+
 
 ## Installation
 
@@ -15,6 +18,7 @@ pip install -e .
 Depending on your platform you may need to install `jax` and `jaxlib` manually.
 See the [JAX installation guide](https://github.com/google/jax#installation) for
 details.
+
 
 ## Usage
 
@@ -44,6 +48,7 @@ temp = jnp.array([[1.0, -1.0], [2.0, 0.0], [0.0, 1.0]])
 runoff = hydrologic_model(precip, evap, temp, params)
 print(runoff)
 ```
+
 
 ## Development
 

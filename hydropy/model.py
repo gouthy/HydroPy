@@ -1,5 +1,6 @@
 """Process-based distributed hydrologic model using JAX."""
 
+
 from __future__ import annotations
 
 from typing import NamedTuple
@@ -38,6 +39,7 @@ class GroundwaterParams(NamedTuple):
 
 
 class HydroParams(NamedTuple):
+
     snow: SnowParams
     canopy: CanopyParams
     soil: SoilParams
@@ -112,6 +114,7 @@ def hydrologic_model(precip: jnp.ndarray, evap: jnp.ndarray, temp: jnp.ndarray, 
     """
     _require_jax()
     return jax.vmap(_single_cell_model, in_axes=(1,1,1,None), out_axes=1)(precip, evap, temp, params)
+
 
 
 __all__ = [
