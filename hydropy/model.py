@@ -81,6 +81,7 @@ def update_snow_state(
     """Update snow state and return rainfall produced."""
     rainfall, sn_solid, sn_liquid = snow_process(
         state.snow_solid, state.snow_liquid, precip, temp, day_fraction, params.snow
+
     )
     return state._replace(snow_solid=sn_solid, snow_liquid=sn_liquid), rainfall
 
