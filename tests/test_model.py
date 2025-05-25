@@ -24,7 +24,7 @@ def test_hydrologic_model_shape():
             t_melt=273.15,
             f_snlq_max=0.06,
         ),
-        canopy=CanopyParams(capacity=1.0),
+        canopy=CanopyParams(f_bare=0.5, f_veg=0.5, LAI=1.0, cap0=1.0),
         soil=SoilParams(capacity=2.0, conductivity=0.1),
         groundwater=GroundwaterParams(recession=0.05),
     )
