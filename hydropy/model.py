@@ -52,7 +52,10 @@ class SoilParams(NamedTuple):
 
 
 class GroundwaterParams(NamedTuple):
-    recession: float
+    f_lake: float = 0.0
+    f_wetland: float = 0.0
+    LAG_sw: float = 0.0
+    LAG_gw: float = 0.0
 
 
 class HydroParams(NamedTuple):
@@ -68,6 +71,7 @@ class HydroState(NamedTuple):
     S_skin: float
     S_can: float
     S_so: float
+    S_sw: float
     groundwater: float
 
 
@@ -263,10 +267,42 @@ def soil_module(
     }
 
 
-def groundwater_process(gw: float, recharge: float, params: GroundwaterParams):
-    baseflow = params.recession * gw
-    gw = gw + recharge - baseflow
-    return baseflow, gw
+def groundwater_process(
+    P: float,
+    snow: dict,
+    soil: dict,
+    PET: float,
+    params: GroundwaterParams,
+    S_sw: float,
+    S_gw: float,
+):
+    """Surface water and shallow groundwater processes."""
+    P_sn = snow["P_sn"]
+    R_sn = snow["R_sn"]
+    R_srf = soil["R_srf"]
+    R_gr = soil["R_gr"]
+
+    P_ra = P - P_sn
+    f_sw = jnp.maximum(params.f_lake, params.f_wetland)
+
+    R_sw = S_sw / (params.LAG_sw + 1.0)
+    dS_sw = (P_ra + R_sn - PET) * f_sw + R_srf - R_sw
+    S_sw_new = S_sw + dS_sw
+
+    R_gw = S_gw / (params.LAG_gw + 1.0)
+    dS_gw = R_gr - R_gw
+    S_gw_new = S_gw + dS_gw
+
+    return {
+        "f_sw": f_sw,
+        "P_ra": P_ra,
+        "R_sw": R_sw,
+        "ΔS_sw": dS_sw,
+        "S_sw_new": S_sw_new,
+        "R_gw": R_gw,
+        "ΔS_gw": dS_gw,
+        "S_gw_new": S_gw_new,
+    }
 
 
 # --- state update wrappers -------------------------------------------------
@@ -317,14 +353,28 @@ def update_soil_state(
         params.canopy,
     )
     state = state._replace(S_so=soil["S_so_new"])
-    return state, soil["R_srf"], soil["R_gr"]
+    return state, soil
 
 
 def update_groundwater_state(
-    state: HydroState, recharge: float, params: HydroParams
-) -> tuple[HydroState, float]:
-    baseflow, gw = groundwater_process(state.groundwater, recharge, params.groundwater)
-    return state._replace(groundwater=gw), baseflow
+    state: HydroState,
+    P: float,
+    PET: float,
+    snow: dict,
+    soil: dict,
+    params: HydroParams,
+) -> tuple[HydroState, float, float]:
+    res = groundwater_process(
+        P,
+        snow,
+        soil,
+        PET,
+        params.groundwater,
+        state.S_sw,
+        state.groundwater,
+    )
+    state = state._replace(S_sw=res["S_sw_new"], groundwater=res["S_gw_new"])
+    return state, res["R_sw"], res["R_gw"]
 
 
 # --- model ----------------------------------------------------------------
@@ -342,12 +392,12 @@ def _single_cell_model(
         p, e, t = inputs
         state, snow = update_snow_state(state, p, t, params)
         state, canopy = update_canopy_state(state, p, snow, e, params)
-        state, surf, recharge = update_soil_state(state, p, t, e, snow, canopy, params)
-        state, base = update_groundwater_state(state, recharge, params)
-        runoff = surf + base
+        state, soil = update_soil_state(state, p, t, e, snow, canopy, params)
+        state, R_sw, R_gw = update_groundwater_state(state, p, e, snow, soil, params)
+        runoff = R_sw + R_gw
         return state, runoff
 
-    init = HydroState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    init = HydroState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     _, runoff = jax.lax.scan(step, init, (precip, evap, temp))
     return runoff
