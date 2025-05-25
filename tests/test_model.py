@@ -18,8 +18,13 @@ def test_hydrologic_model_shape():
     evap = jnp.ones((3, 2)) * 0.1
     temp = jnp.ones((3, 2))
     params = HydroParams(
-        snow=SnowParams(melt_temp=0.0, melt_rate=0.1),
-        canopy=CanopyParams(capacity=1.0),
+        snow=SnowParams(
+            t_sn_min=272.05,
+            t_sn_max=276.45,
+            t_melt=273.15,
+            f_snlq_max=0.06,
+        ),
+        canopy=CanopyParams(f_bare=0.5, f_veg=0.5, LAI=1.0, cap0=1.0),
         soil=SoilParams(capacity=2.0, conductivity=0.1),
         groundwater=GroundwaterParams(recession=0.05),
     )
