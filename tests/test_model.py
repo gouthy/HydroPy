@@ -1,4 +1,8 @@
+import os
+import sys
 import pytest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 jax = pytest.importorskip("jax")
 jnp = jax.numpy
@@ -33,7 +37,7 @@ def test_hydrologic_model_shape():
             dt=1.0,
         ),
 
-        groundwater=GroundwaterParams(recession=0.05),
+        groundwater=GroundwaterParams(),
     )
     runoff = hydrologic_model(precip, evap, temp, params)
     assert runoff.shape == precip.shape
