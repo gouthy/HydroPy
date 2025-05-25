@@ -53,6 +53,38 @@ class HydroState(NamedTuple):
     groundwater: float
 
 
+def update_snow_state(
+    state: HydroState, precip: float, temp: float, params: HydroParams
+) -> tuple[HydroState, float]:
+    """Update snow state and return rainfall produced."""
+    rainfall, snowpack = snow_process(state.snowpack, precip, temp, params.snow)
+    return state._replace(snowpack=snowpack), rainfall
+
+
+def update_canopy_state(
+    state: HydroState, rainfall: float, evap: float, params: HydroParams
+) -> tuple[HydroState, float]:
+    """Update canopy state and return throughfall."""
+    throughfall, canopy = canopy_process(state.canopy, rainfall, evap, params.canopy)
+    return state._replace(canopy=canopy), throughfall
+
+
+def update_soil_state(
+    state: HydroState, water: float, params: HydroParams
+) -> tuple[HydroState, float, float]:
+    """Update soil state and return surface runoff and recharge."""
+    surface_runoff, recharge, soil = soil_process(state.soil, water, params.soil)
+    return state._replace(soil=soil), surface_runoff, recharge
+
+
+def update_groundwater_state(
+    state: HydroState, recharge: float, params: HydroParams
+) -> tuple[HydroState, float]:
+    """Update groundwater state and return baseflow."""
+    baseflow, gw = groundwater_process(state.groundwater, recharge, params.groundwater)
+    return state._replace(groundwater=gw), baseflow
+
+
 def snow_process(snowpack: float, precip: float, temp: float, params: SnowParams):
     snowfall = jnp.where(temp <= params.melt_temp, precip, 0.0)
     rainfall = jnp.where(temp > params.melt_temp, precip, 0.0)
@@ -93,13 +125,12 @@ def _single_cell_model(precip: jnp.ndarray, evap: jnp.ndarray, temp: jnp.ndarray
     _require_jax()
     def step(state: HydroState, inputs):
         p, e, t = inputs
-        rain, snow = snow_process(state.snowpack, p, t, params.snow)
-        tf, canopy = canopy_process(state.canopy, rain, e, params.canopy)
-        surf, recharge, soil = soil_process(state.soil, tf, params.soil)
-        base, gw = groundwater_process(state.groundwater, recharge, params.groundwater)
-        new_state = HydroState(snow, canopy, soil, gw)
+        state, rain = update_snow_state(state, p, t, params)
+        state, tf = update_canopy_state(state, rain, e, params)
+        state, surf, recharge = update_soil_state(state, tf, params)
+        state, base = update_groundwater_state(state, recharge, params)
         runoff = surf + base
-        return new_state, runoff
+        return state, runoff
 
     init = HydroState(0.0, 0.0, 0.0, 0.0)
     _, runoff = jax.lax.scan(step, init, (precip, evap, temp))
