@@ -38,6 +38,7 @@ multiple grid cells:
 ```python
 import jax.numpy as jnp
 from hydropy import (
+
     SnowParams,
     CanopyParams,
     SoilParams,
@@ -59,6 +60,7 @@ params = HydroParams(
 )
 
 runoff = hydrologic_model(precip, temp, evap, params)
+
 print(runoff)
 ```
 

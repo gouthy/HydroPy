@@ -72,6 +72,7 @@ class GroundwaterParams(NamedTuple):
 class HydroParams(NamedTuple):
     """Grouped parameters for the full hydrologic model."""
 
+
     snow: SnowParams
     canopy: CanopyParams
     soil: SoilParams
@@ -115,6 +116,7 @@ def _groundwater_step(recharge: jnp.ndarray, gw: jnp.ndarray, params: Groundwate
     return gw, baseflow
 
 
+
 def hydrologic_model(
     precip: jnp.ndarray,
     temp: jnp.ndarray,
@@ -148,6 +150,7 @@ def hydrologic_model(
         runoff.append(baseflow)
 
     return jnp.stack(runoff)
+
 
 
 __all__ = [
