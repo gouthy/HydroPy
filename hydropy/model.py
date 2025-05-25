@@ -42,6 +42,7 @@ class GroundwaterParams(NamedTuple):
 class HydroParams(NamedTuple):
     """Container for all model parameters."""
 
+
     snow: SnowParams
     canopy: CanopyParams
     soil: SoilParams
